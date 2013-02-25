@@ -1,6 +1,7 @@
 (ns suffix.core
   (:gen-class
-   :methods [#^{:static true} [is_sub_java [String String] Boolean]])
+   :methods [#^{:static true} [is_sub_java [String String] Boolean]]
+   :require clojure.inspector)
   )
 
 
@@ -153,7 +154,7 @@
 
    Input:
         root - the suffix tree (required).
-        sub - sub-word to be searched for
+        sub - sub-word to be searched for (required).
    "
   [root sub]
   (if (= (count sub) 0)
@@ -244,7 +245,6 @@
    "
   [string_ sub]
   (is_sub (build_tree string_) sub))
-;  (not= (which_ind (build_tree string_) sub) nil))
 
 
 ; ======================================
@@ -260,6 +260,10 @@
     (println sol_vec)
     (println sol_vec2)))
 
+(defn show_tree
+  []
+  (use 'clojure.inspector)
+  (inspect-tree (build_tree "hi")))
 
 ; ======================================
 ;              Main
