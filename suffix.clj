@@ -1,4 +1,7 @@
-(ns test.test)
+(ns suffix.core
+  (:gen-class
+   :methods [#^{:static true} [is_sub_java [java.lang.String java.lang.String] java.lang.Boolean]])
+  )
 
 "Node definition
  ---------------
@@ -153,6 +156,19 @@
     (is_sub_lazy2 col (build_tree word))))
 
 
+(defn -is_sub_java
+  "Checks whether sub is a substring of a word 
+
+   Input:
+        root - the suffix tree (required).
+        sub - sub-word to be searched for
+   Returns:
+        true if sub is a substring of root
+        false otherwise
+   "
+  [string_ sub]
+  (not= (which_ind (build_tree string_) sub) nil))
+
 ; pattern
 (def pat (list "ku" "ka" "h" "kuku"))
 
@@ -162,3 +178,5 @@
 ; test patterns
 (def sol_vec (is_sub_lazy "kuku" pat))
 
+(defn -main[]
+  (println "hi"))
