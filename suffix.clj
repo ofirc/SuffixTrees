@@ -118,7 +118,7 @@
         word - the word to be searched in (string). Required.
         col - collection of patterns (strings), Required.
    Method:
-        Validates that word is a string,
+        Validates that word is a non-empty string,
         and col is a non-empty collection of strings.
    Returns:
         true if either of the params type mismatch
@@ -126,6 +126,7 @@
    "
   [word col]
   (or (or (not (string? word))
+          (empty? word)
           (and (not= (list? col))
                (not= (vector? col))))
            (or (empty? col)
@@ -173,7 +174,7 @@
     (throw (Throwable. (str
       "\nInput must be:\n"
       "col - a non-empty collection of string patterns\n"
-      "word - a string!\n")))
+      "word - a non-empty string!\n")))
     (lazy_query_real func col (build_tree word)))
   )
 
@@ -281,7 +282,7 @@
 
 
 (defn longest_repeating_substring
-  "Finds the longest repeating substring 
+ "Finds the longest repeating substring 
 
    Input:
         word - the word to be searched in (required).
@@ -304,8 +305,9 @@
         Note: if there is no repeating substring, returns
               the string itself
    "
-  [word]
-  (let [root (build_tree word)]
+  ([_ word] 
+    (longest_repeating_substring (build_tree word)))
+  ([root]
     (reduce longer (get_max_child root))))
 
 
@@ -323,7 +325,6 @@
     (if-let [next_node (get-in root [:next (first sub)])]
       (how_many next_node (subs sub 1))
       0)))
-
 
 
 
@@ -363,6 +364,37 @@
   (lazy_query is_sub word col))
 
 
+(defn longest_repeating_substring_lazy
+ "Finds the longest repeating substring for each item in the collection
+
+   Input:
+        word - the word to be searched in (required)
+        col - collection of (strings) patterns (required).
+   
+   Returns:
+        The longest repeated substring for each pattern in col.
+        If there's more than one substring that appears
+        in the same amount of times in the string, returns
+        the longest one among them.
+        
+        Note: if there is no repeating substring, returns
+              the string itself
+   "
+ [word col]
+  (lazy_query longest_repeating_substring word col))
+
+(defn how_many_lazy
+  "Checks how many times each pattern in collection appears
+
+   Input:
+        word - the word to be searched in (required)
+        col - collection of (strings) patterns (required).
+   Returns:
+        a lazy sequence, for each pattern (in the corresponding index)
+        returns how many times it appears in the substring
+   "
+  [word col]
+  (lazy_query how_many word col))
 
 
 
@@ -380,26 +412,18 @@
    Returns:
         true if sub is a substring of root
         false otherwise
+   Note:
+        this version is to designated to be called
+        from java.
+
    "
   [word sub]
   (is_sub (build_tree word) sub))
-
-
-
-
-
-; ======================================
-;              Testings
-; ======================================
-
-
-
-
 
 ; ======================================
 ;              Main
 ; ======================================
 
+
 (defn -main[]
-  ;(do_testing)
   )
