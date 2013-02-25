@@ -9,17 +9,27 @@
 ;           Tree definition
 ; ======================================
 
-"Node definition
- ---------------
+"=====================
+ =  Node definition  =
+ =====================
+
  Node in the tree contains:
+
  1) next - hash-map of:
         key = <current char>
         value = rest of word, <node object>
- 2) idx_start - set of indices where the word
-                read so far starts
+    this map will allow us to traverse the tree
+    in O(1) for each char read (when reading a pattern).
+
+ 2) idx_start - set of indices that correspond to the
+                beginning of the pattern read so far,
+                relative to the root
+
+ 3) cnt - size of idx_starts
 
 "
 (defrecord node [next idx_start cnt]) 
+
 
 
 ; ======================================
@@ -30,7 +40,7 @@
   "Creates an empty node"
   []
   (let [next (hash-map)
-        idx_start (vector)
+        idx_start (hash-set)
         cnt 0]
     (node. next idx_start cnt)))
 
@@ -44,44 +54,30 @@
         idx - index which indicates at which indices
               does the current path correspond to
               (required)
-        node - node to which the tree will be rooted at.
+        node - node in which the tree will be rooted.
                If not given - creates an empty node and roots
                the new tree under this node.
+
    Returns:
-        tree for the given suffix          
+        tree for the given suffix (of type node)
    "
   ([word idx] (build_suffix word (build_node) idx))
   ([word node idx]
-    (if (= (count word) 0)
-      (if (empty? (:next node))
-        ; empty node
-        (update-in (assoc node :idx_start [idx])
-                   [:cnt] inc)
-        ; node already exists?
+    (if (empty? word)
+      ; base case (finished reading a suffix)
         (update-in 
           (update-in node [:idx_start] conj idx)
-          [:cnt] inc))
+            [:cnt] inc)
 
-      ; node already exists
-      (if-let [next_node (get-in node [:next (first word)])]
-        (let [new_child_node (build_suffix (subs word 1) next_node idx)
-              cur_char (first word)
-              idx_start (conj (:idx_start node) idx)
-              cnt (+ (:cnt node) 1)]
-          (assoc
-              (assoc-in node [:next cur_char] new_child_node)
-              :idx_start idx_start
-              :cnt cnt))
-      
-      ; node doesn't exist
-      (let [child_node (build_suffix (subs word 1) idx)
-            cur_char (first word)
-            idx_start (conj (:idx_start node) idx)
-            cnt (+ (:cnt node) 1)]
-        (assoc (assoc-in node [:next cur_char] child_node)
-               :idx_start idx_start
-               :cnt cnt)
-        )))))
+      ; induction (still left to read from suffix)
+      (let [next_node (get-in node [:next (first word)] (build_node))]
+        (assoc-in 
+          (update-in 
+            (update-in node [:idx_start] conj idx)
+              [:cnt] inc)
+          [:next (first word)] 
+          (build_suffix (subs word 1) next_node idx))
+        ))))
 
 (defn build_tree
   "Generates the suffix tree for the given word
@@ -89,8 +85,11 @@
    Input:
         word - the word to generate suffix tree for.
                word must be a string. (required)
+   Method:
+        Constructs the tree by building each suffix
+        and appending it to the root node of the tree
    Returns:
-        suffix tree for the given word          
+        Root node for the suffix tree
    "
   [word]
   (if (not= (string? word))
@@ -107,19 +106,20 @@
 
 
 
+
 ; ======================================
-;       Tree query & utility functions
+;       Helper functions
 ; ======================================
 
 (defn pred_mismatch
-  "A predicate for validating the params to suffix_query
+  "A predicate for validating the params to querys with collections
 
    Input:
         word - the word to be searched in (string). Required.
         col - collection of patterns (strings), Required.
    Method:
-        validates that word is a string,
-        and col is a non-empty collection of strings
+        Validates that word is a string,
+        and col is a non-empty collection of strings.
    Returns:
         true if either of the params type mismatch
         and false otherwise
@@ -131,7 +131,15 @@
            (or (empty? col)
                (not-every? string? col))))
 
+
 (defn lazy_query_real
+  "Generates the lazy sequence queries
+   
+   This function is called after parameters were
+   validated on 'lazy_query', and it returns the
+   lazy sequence of the results.
+
+  "
   [func col root]
   (if (empty? col)
     nil
@@ -140,6 +148,26 @@
   )
 
 (defn lazy_query
+  "A predicate for validating the params to querys with collections
+
+   Input:
+        func - the function to be applied on each
+               of the patterns
+        word - the word to be searched in (string). Required.
+        col - collection of patterns (strings), Required.
+
+   Method:
+        Invokes that word is a string,
+        and col is a non-empty collection of strings.
+
+   Returns:
+        A lazy sequence of the patterns evaluated with
+        the given func.
+
+   Throws:
+        Exception when parameters mismatch with the error msg.
+   "
+  
   [func word col]
   (if (pred_mismatch word col)
     (throw (Throwable. (str
@@ -149,20 +177,75 @@
     (lazy_query_real func col (build_tree word)))
   )
 
-(defn how_much
-  "Returns how many times a substring appears inside word 
+
+(defn get_str_path
+  "Returns the string formed by concat the path until base case
 
    Input:
-        root - the suffix tree (required).
-        sub - sub-word to be searched for (required).
-   "
-  [root sub]
-  (if (= (count sub) 0)
-    (:cnt root)
-    (if-let [next_node (get-in root [:next (first sub)])]
-      (how_much next_node (subs sub 1))
-      0)))
+        node - the current node that correspond to
+               the path read so far from the root (required).
+        cnt - number of suffixes containing the longest
+              repeated pattern (required).
+        word - the repeat pattern that was so far discovered
+               (required).
 
+   Method:
+        Traverse in the tree as long as the number of
+        suffixes found (in the current node) is the same
+        as the number of suffixes of the longest repeated substring.
+
+   Returns:
+        The longest repeating substring from the child node
+        of the root (supplied as node)
+
+   Note: this function is TCO optimized
+         (last line returns the result of the next call)
+
+  "
+  [node cnt word]
+  (if (or (empty? (:next node))
+          (> (count (vals (:next node))) 1)
+          (< (:cnt (nth (vals (get node :next)) 0)) cnt))
+    word
+    ; concatenate myself & next call
+    (let [ch_cur (nth (keys (get node :next)) 0)
+          next_node (nth (vals (get node :next)) 0)]
+         (get_str_path next_node cnt (str word ch_cur)))))
+
+
+(defn get_max_child
+  "Returns all the longest repeated strings from root's children
+
+   Input:
+        root - the root node of the suffix tree
+
+   Method:
+        Iterates over each of the root children,
+        and for each child that has max cnt (most commonly repeated) 
+        returns the 'longest repeated substring' that starts
+        by traversing from the root node via that child.
+   Returns:
+        a collection of all the most commonly repeated patterns
+
+   "
+  [root]
+  (let [max_cnt (reduce max (map :cnt (vals (:next root))))]
+    (for [ch (keys (:next root))
+          :when (= (get-in root [:next ch :cnt]) max_cnt)] 
+      (str (get_str_path (get-in root [:next ch]) max_cnt ch)))))
+
+
+(defn longer
+  "Returns the longer string between s1 & s2"
+  [s1 s2]
+  (if (> (count s1) (count s2))
+    s1 s2))
+
+
+
+; ======================================
+;    Query functions (single pattern)
+; ======================================
 
 (defn which_ind
   "Retrieves the set of indices where sub is located 
@@ -170,13 +253,13 @@
 
    Input:
         root - the suffix tree (required).
-        sub - sub-word to be searched for
+        sub - sub-word to be searched for (required).
    Returns:
         the set of indices where sub is located,
         and nil otherwise
    "
   [root sub]
-  (if (= (count sub) 0)
+  (if (empty? sub)
     (get-in root [:idx_start])
     (if-let [next_node (get-in root [:next (first sub)])]
       (which_ind next_node (subs sub 1))
@@ -188,7 +271,7 @@
 
    Input:
         root - the suffix tree (required).
-        sub - sub-word to be searched for
+        sub - sub-word to be searched for (required).
    Returns:
         true if sub is a substring of root
         false otherwise
@@ -197,15 +280,80 @@
   (not= (which_ind root sub) nil))
 
 
+(defn longest_repeating_substring
+  "Finds the longest repeating substring 
+
+   Input:
+        word - the word to be searched in (required).
+   
+   Method:
+       1. for all child's of root, find node with max count
+       2. traverse the path from the root via the child-node with max
+          count, and read letters on the path
+       3. stop when:
+           a. more than one child (more than one key in the map)
+           b. child has lower counter than me 
+              (that means the substring repeats twice)
+
+   Returns:
+        The longest repeated substring. 
+        If there's more than one substring that appears
+        in the same amount of times in the string, returns
+        the longest one among them.
+        
+        Note: if there is no repeating substring, returns
+              the string itself
+   "
+  [word]
+  (let [root (build_tree word)]
+    (reduce longer (get_max_child root))))
+
+
+(defn how_many
+  "Returns how many times a substring appears inside word 
+
+   Input:
+        root - the suffix tree (required).
+        sub - sub-word to be searched for (required).
+
+   "
+  [root sub]
+  (if (empty? sub)
+    (:cnt root)
+    (if-let [next_node (get-in root [:next (first sub)])]
+      (how_many next_node (subs sub 1))
+      0)))
+
+
+
+
 ; ======================================
-;        Queries with Lazy sequences
+;  Query functions with Lazy sequences
+;    (a coll of patterns is given)
 ; ======================================
+
+(defn idx_lazy
+  "Determines the set of indices for patterns in the text
+
+   Input:
+        word - the word to be searched in (required)
+        col - collection of patterns (strings)
+   Returns:
+        a lazy sequence, for each pattern (in the corresponding index)
+        where each element contains the set of indices (if found)
+        and nil otherwise.
+   "
+  [word col]
+  (lazy_query which_ind word col))
+
+
+
 (defn sub_lazy
   "Checks whether a collection of inputs are substrings of a word
 
    Input:
         word - the word to be searched in (required)
-        col - collection of patterns (strings)
+        col - collection of (strings) patterns (required).
    Returns:
         a lazy sequence, for each pattern (in the corresponding index)
         returns true if it is a substring of word
@@ -214,19 +362,9 @@
   [word col]
   (lazy_query is_sub word col))
 
-(defn idx_lazy
-  "Checks whether a collection of inputs are substrings of a word
 
-   Input:
-        word - the word to be searched in (required)
-        col - collection of patterns (strings)
-   Returns:
-        a lazy sequence, for each pattern (in the corresponding index)
-        returns true if it is a substring of word
-        false otherwise
-   "
-  [word col]
-  (lazy_query which_ind word col))
+
+
 
 
 ; ======================================
@@ -243,32 +381,25 @@
         true if sub is a substring of root
         false otherwise
    "
-  [string_ sub]
-  (is_sub (build_tree string_) sub))
+  [word sub]
+  (is_sub (build_tree word) sub))
+
+
+
 
 
 ; ======================================
 ;              Testings
 ; ======================================
 
-(defn do_testing
-  []
-  (let [pat (list "ku" "ka" "h" "kuku")
-        root (build_tree "kuka")
-        sol_vec (sub_lazy "kuku" pat)
-        sol_vec2 (idx_lazy "kuku" pat)]
-    (println sol_vec)
-    (println sol_vec2)))
 
-(defn show_tree
-  []
-  (use 'clojure.inspector)
-  (inspect-tree (build_tree "hi")))
+
+
 
 ; ======================================
 ;              Main
 ; ======================================
 
 (defn -main[]
-  (do_testing)
+  ;(do_testing)
   )
