@@ -13,6 +13,7 @@ From here you can call any of the project functions, for example:
 (println (is_sub (build_tree "banana") "na"))
 
 Note: 
+
 1) We've used Counterclockwise plugin for Eclipse that integrates
 Clojure support into the IDE, such as REPL and editing features.
 For more information please refer to:
