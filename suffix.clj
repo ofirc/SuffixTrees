@@ -18,7 +18,7 @@
                 read so far starts
 
 "
-(defrecord node [next idx_start]) 
+(defrecord node [next idx_start cnt]) 
 
 
 ; ======================================
@@ -29,8 +29,9 @@
   "Creates an empty node"
   []
   (let [next (hash-map)
-        idx_start (vector)]
-    (node. next idx_start)))
+        idx_start (vector)
+        cnt 0]
+    (node. next idx_start cnt)))
 
 
 (defn build_suffix
@@ -53,27 +54,33 @@
     (if (= (count word) 0)
       (if (empty? (:next node))
         ; empty node
-        (assoc node :idx_start [idx])
+        (update-in (assoc node :idx_start [idx])
+                   [:cnt] inc)
         ; node already exists?
-        (update-in node [:idx_start] conj idx))
+        (update-in 
+          (update-in node [:idx_start] conj idx)
+          [:cnt] inc))
 
       ; node already exists
       (if-let [next_node (get-in node [:next (first word)])]
         (let [new_child_node (build_suffix (subs word 1) next_node idx)
               cur_char (first word)
-              idx_start (conj (:idx_start node) idx)]
+              idx_start (conj (:idx_start node) idx)
+              cnt (+ (:cnt node) 1)]
           (assoc
               (assoc-in node [:next cur_char] new_child_node)
-              :idx_start idx_start))
+              :idx_start idx_start
+              :cnt cnt))
       
       ; node doesn't exist
       (let [child_node (build_suffix (subs word 1) idx)
             cur_char (first word)
-            idx_start (conj (:idx_start node) idx)]
+            idx_start (conj (:idx_start node) idx)
+            cnt (+ (:cnt node) 1)]
         (assoc (assoc-in node [:next cur_char] child_node)
-               :idx_start idx_start)
-        )
-))))
+               :idx_start idx_start
+               :cnt cnt)
+        )))))
 
 (defn build_tree
   "Generates the suffix tree for the given word
@@ -85,15 +92,15 @@
         suffix tree for the given word          
    "
   [word]
-  (if (not= (type word) java.lang.String)
+  (if (not= (string? word))
     (throw (Throwable. "Input must be a string!"))
-  (loop [cur_idx 0
-         root (build_suffix word cur_idx)
+  (loop [idx 0
+         root (build_suffix word idx)
          rest_word (subs word 1)]
     (if (empty? rest_word)
       root
-    (recur (inc cur_idx)
-           (build_suffix rest_word root (+ cur_idx 1))
+    (recur (inc idx)
+           (build_suffix rest_word root (+ idx 1))
            (subs rest_word 1))))))
 
 
@@ -140,6 +147,21 @@
       "word - a string!\n")))
     (lazy_query_real func col (build_tree word)))
   )
+
+(defn how_much
+  "Returns how many times a substring appears inside word 
+
+   Input:
+        root - the suffix tree (required).
+        sub - sub-word to be searched for
+   "
+  [root sub]
+  (if (= (count sub) 0)
+    (:cnt root)
+    (if-let [next_node (get-in root [:next (first sub)])]
+      (how_much next_node (subs sub 1))
+      0)))
+
 
 (defn which_ind
   "Retrieves the set of indices where sub is located 
