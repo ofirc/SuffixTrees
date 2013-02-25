@@ -4,9 +4,12 @@ SuffixTrees
 Suffix Tree impelmentation in Clojure
 
 In order to run the project functions do the following:
+
 1) Eclipse > Import existing project into workspace > eclipse_project.zip
+
 2) To run the tests, open 'src/testing.clj' and load it in the REPL
 (Alt+Ctrl+S)
+
 3) To run the suffix functions, open 'src/suffix/suffix.clj' and load it
 in the REPL (Alt+Ctrl+S), and then switch to the namespace (Alt+Ctrl+N).
 From here you can call any of the project functions, for example:
