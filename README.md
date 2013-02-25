@@ -12,7 +12,11 @@ in the REPL (Alt+Ctrl+S), and then switch to the namespace (Alt+Ctrl+N).
 From here you can call any of the project functions, for example:
 (println (is_sub (build_tree "banana") "na"))
 
-Note: we've used Counterclockwise plugin for Eclipse that integrates
+Note: 
+1) We've used Counterclockwise plugin for Eclipse that integrates
 Clojure support into the IDE, such as REPL and editing features.
 For more information please refer to:
 https://code.google.com/p/counterclockwise/
+
+2) There is a more detailed introduction to the project written in Hebrew
+in "Project full report.pdf"
